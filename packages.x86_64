@@ -232,9 +232,9 @@ mtools
 ################################################################################
 # COMMENTED OUT - Previously included, kept for reference
 ################################################################################
-# Hardware microcode (uncomment if needed for specific hardware)
+# Hardware microcode
 #amd-ucode
-#intel-ucode
+intel-ucode
 
 # Additional filesystems (uncomment if needed)
 #btrfs-progs
