@@ -14,7 +14,6 @@ mkarchiso_wrapper
 # Pacman cache
 /var/cache/pacman/pkg/*
 
-# Peertube runtime state (should never be committed)
-peertube/docker-volume/db/pg_wal/
-peertube/docker-volume/db/
+# Peertube deployment — relocated outside the repo, never re-commit
+peertube/
 
