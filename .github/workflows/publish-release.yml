@@ -1,0 +1,62 @@
+name: publish-release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download published ISO and generate SHA256SUMS
+        env:
+          # Repo variable pointing at the canonical ISO URL for this edition,
+          # e.g. https://iso.acreetionos.org/acreetion/AcreetionOS-1.0-x86_64.iso
+          ISO_URL: ${{ vars.ISO_URL }}
+        run: |
+          set -euo pipefail
+          [ -n "$ISO_URL" ] || { echo "Set repo variable ISO_URL first"; exit 1; }
+          curl -fL --retry 3 -o iso.img "$ISO_URL"
+          ISO_NAME=$(basename "$ISO_URL")
+          mv iso.img "$ISO_NAME"
+          sha256sum "$ISO_NAME" | sed "s|  .*|  $ISO_NAME|" > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create GitHub Release with checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          gh release create "$GITHUB_REF_NAME" SHA256SUMS.txt \
+            --title "AcreetionOS ${VER}" \
+            --notes "ISO: ${ISO_URL}
+
+### Verify
+\`\`\`bash
+sha256sum -c <(grep \$(basename \"\$URL\") SHA256SUMS.txt)
+\`\`\`
+
+Torrent magnet and .torrent file: see https://acreetionos.org/#manual-downloads"
+
+      - name: Upload to SourceForge (optional, needs SF_* secrets)
+        env:
+          SF_USER: ${{ secrets.SF_USER }}
+          SF_SSH_KEY: ${{ secrets.SF_SSH_KEY }}
+          SF_PROJECT: acreetionos-iso-image
+          ISO_URL: ${{ vars.ISO_URL }}
+        run: |
+          [ -n "$SF_SSH_KEY" ] || { echo "SF secrets not configured - skipping"; exit 0; }
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SF_SSH_KEY" > ~/.ssh/sf_key && chmod 600 ~/.ssh/sf_key
+          ssh-keyscan -t ed25519 frs.sourceforge.net >> ~/.ssh/known_hosts
+          ISO_NAME=$(basename "$ISO_URL")
+          sftp -i ~/.ssh/sf_key "${SF_USER},${SF_PROJECT}@frs.sourceforge.net" <<EOF
+          put "$ISO_NAME" "/home/frs/project/${SF_PROJECT}/$ISO_NAME"
+          put "SHA256SUMS.txt" "/home/frs/project/${SF_PROJECT}/SHA256SUMS.txt"
+          EOF
